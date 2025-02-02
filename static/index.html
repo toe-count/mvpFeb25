@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <title>Minimal Chat UI</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+    }
+    #messages {
+      width: 100%;
+      max-width: 600px;
+      height: 300px;
+      border: 1px solid #ccc;
+      padding: 8px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+    }
+    .message {
+      margin: 4px 0;
+      line-height: 1.4;
+    }
+    .user {
+      color: #007bff;
+      font-weight: bold;
+    }
+    .assistant {
+      color: #28a745;
+      font-weight: bold;
+    }
+    #user-input {
+      width: calc(100% - 70px);
+      max-width: 600px;
+      margin-right: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Minimal Chat UI</h1>
+  <div id="messages"></div>
+  <input type="text" id="user-input" placeholder="Type your message..."/>
+  <button id="send-btn">Send</button>
+
+  <script>
+    const API_BASE = "http://localhost:8000"; // ✅ Ensure it's the correct port for your Flask app
+    let threadId = null;
+
+    // DOM elements
+    const messagesDiv = document.getElementById('messages');
+    const userInput = document.getElementById('user-input');
+    const sendBtn = document.getElementById('send-btn');
+
+    // ✅ Ensure the DOM is fully loaded before running the script
+    document.addEventListener("DOMContentLoaded", async () => {
+      await startThread(); // Start a new thread once the page loads
+    });
+
+    // ✅ Fetch Helper with CORS Fixes
+    async function fetchWithCORS(url, options = {}) {
+      return fetch(url, {
+        ...options,
+        mode: "cors", // Ensures cross-origin requests are handled properly
+        credentials: "include", // Allows cookies if needed
+        headers: { 
+          "Content-Type": "application/json",
+          ...(options.headers || {}) // Merge any additional headers
+        }
+      });
+    }
+
+    // ✅ Start a new thread
+    async function startThread() {
+      try {
+        const res = await fetchWithCORS(`${API_BASE}/start_thread`, { method: 'POST' });
+        if (!res.ok) throw new Error(`Failed to start thread: ${res.statusText}`);
+        const data = await res.json();
+        threadId = data.thread_id;
+        console.log("Thread started with ID:", threadId);
+      } catch (err) {
+        console.error(err);
+        alert("Error starting thread. Check console for details.");
+      }
+    }
+
+    // ✅ Send a message
+    async function sendMessage() {
+      const userMessage = userInput.value.trim();
+      if (!userMessage) return; // Don't send empty messages
+
+      if (!threadId) {
+        console.warn("Thread ID not set, retrying startThread()...");
+        await startThread(); // Ensure a thread exists before sending a message
+      }
+
+      addMessage("user", userMessage);
+      userInput.value = ""; // Clear input after sending
+
+      try {
+        const response = await fetchWithCORS(`${API_BASE}/send_message`, {
+          method: "POST",
+          body: JSON.stringify({
+            thread_id: threadId,
+            message: userMessage
+          })
+        });
+
+        if (!response.ok) {
+          addMessage("assistant", "Error: Failed to get response");
+          return;
+        }
+
+        // ✅ Stream the assistant response
+        const reader = response.body.getReader();
+        let partialText = "";
+        let assistantMsgDiv = addMessage("assistant", ""); // Placeholder
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          const chunk = new TextDecoder().decode(value);
+
+          const lines = chunk.split("\n");
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const data = line.replace("data: ", "").trim();
+
+              if (data === "Stream closed") {
+                console.log("Assistant stream closed");
+              } else {
+                partialText += data;
+                assistantMsgDiv.textContent = "Assistant: " + partialText;
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        addMessage("assistant", `Error: ${err.message}`);
+      }
+    }
+
+    // ✅ Helper to display messages
+    function addMessage(role, text) {
+      const msgDiv = document.createElement('div');
+      msgDiv.classList.add('message');
+      msgDiv.classList.add(role === "user" ? 'user' : 'assistant');
+      msgDiv.textContent = `${role.charAt(0).toUpperCase() + role.slice(1)}: ${text}`;
+      messagesDiv.appendChild(msgDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      return msgDiv;
+    }
+
+    // ✅ Set up event listeners
+    sendBtn.addEventListener('click', sendMessage);
+    userInput.addEventListener('keyup', function (e) {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+  </script>
+</body>
+</html>

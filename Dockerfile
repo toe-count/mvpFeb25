@@ -1,35 +1,27 @@
-# Use an official Python runtime as the base image
-FROM python:3.11-slim
+# Use a lightweight Python base image
+FROM python:3.9-slim
 
-# Set the working directory in the container
+# Create and switch to /app directory
 WORKDIR /app
 
-# Install necessary system dependencies and upgrade pip
-RUN apt-get update && apt-get install -y \
-    python3-venv \
-    gcc \
-    libffi-dev \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip install --upgrade pip
-
-# Create a virtual environment
-RUN python -m venv /app/venv
-
-# Ensure the virtual environment is used for subsequent commands
-ENV PATH="/app/venv/bin:$PATH"
-
-# Copy the current directory contents into the container at /app
-COPY . /app
-
-# Install any necessary dependencies within the virtual environment
+# 1) Copy and install Python dependencies
+COPY backend/requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose the port your app will run on
-EXPOSE 8080
+# 2) Copy the Flask code from backend/
+COPY backend/ /app
 
-# Set environment variables for Flask (if you're using Flask)
-ENV PORT 8080
+# 3) Copy your front-end file (index.html) into Flask's static folder
+RUN mkdir -p /app/static
+COPY index.html /app/static/index.html
 
-# Run the application
-CMD ["python", "app.py"]
+# (Optional) If you have more front-end files (CSS/JS), copy them here too:
+# COPY some-script.js /app/static/some-script.js
+# COPY style.css /app/static/style.css
+
+# 4) Expose the port that Gunicorn/Flask will listen on
+EXPOSE 8000
+
+# 5) Start Gunicorn, binding to port 8000, serving 'app:app'
+#    (where `app` is your "app" object in `app.py`)
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "app:app"]
