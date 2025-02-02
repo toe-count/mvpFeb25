@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 from firebase_admin import firestore, auth
 from datetime import datetime, timedelta, timezone
-from response_event_handler import ResponseEventHandler
+from mvpFeb25.backend.response_event_handler import ResponseEventHandler
 import stripe
 load_dotenv() # get env variables from .env file
 
