@@ -10,3 +10,5 @@ google-cloud-storage
 google-cloud-secret-manager
 google-cloud-core
 gunicorn
+nltk
+re

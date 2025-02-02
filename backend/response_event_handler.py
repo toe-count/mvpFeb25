@@ -17,4 +17,4 @@ class ResponseEventHandler(AssistantEventHandler):
 
     def get_response(self):
         full_response = ''.join(self.response_text)
-        return full_response 
+        return full_response
